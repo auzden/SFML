@@ -69,6 +69,28 @@ namespace
         vertices.append(sf::Vertex(sf::Vector2f(position.x + right - italicShear * top    - outlineThickness, position.y + top    - outlineThickness), color, sf::Vector2f(u2, v1)));
         vertices.append(sf::Vertex(sf::Vector2f(position.x + right - italicShear * bottom - outlineThickness, position.y + bottom - outlineThickness), color, sf::Vector2f(u2, v2)));
     }
+
+    void addGlyphQuad(sf::VertexArray& vertices, sf::Vector2f position, const sf::Color& topGradient, const sf::Color& bottomGradient, const sf::Glyph& glyph, float italicShear, float outlineThickness = 0)
+    {
+        float padding = 1.0;
+
+        float left = glyph.bounds.left - padding;
+        float top = glyph.bounds.top - padding;
+        float right = glyph.bounds.left + glyph.bounds.width + padding;
+        float bottom = glyph.bounds.top + glyph.bounds.height + padding;
+
+        float u1 = static_cast<float>(glyph.textureRect.left) - padding;
+        float v1 = static_cast<float>(glyph.textureRect.top) - padding;
+        float u2 = static_cast<float>(glyph.textureRect.left + glyph.textureRect.width) + padding;
+        float v2 = static_cast<float>(glyph.textureRect.top + glyph.textureRect.height) + padding;
+
+        vertices.append(sf::Vertex(sf::Vector2f(position.x + left  - italicShear * top    - outlineThickness, position.y + top    - outlineThickness), topGradient,    sf::Vector2f(u1, v1)));
+        vertices.append(sf::Vertex(sf::Vector2f(position.x + right - italicShear * top    - outlineThickness, position.y + top    - outlineThickness), topGradient,    sf::Vector2f(u2, v1)));
+        vertices.append(sf::Vertex(sf::Vector2f(position.x + left  - italicShear * bottom - outlineThickness, position.y + bottom - outlineThickness), bottomGradient, sf::Vector2f(u1, v2)));
+        vertices.append(sf::Vertex(sf::Vector2f(position.x + left  - italicShear * bottom - outlineThickness, position.y + bottom - outlineThickness), bottomGradient, sf::Vector2f(u1, v2)));
+        vertices.append(sf::Vertex(sf::Vector2f(position.x + right - italicShear * top    - outlineThickness, position.y + top    - outlineThickness), topGradient,    sf::Vector2f(u2, v1)));
+        vertices.append(sf::Vertex(sf::Vector2f(position.x + right - italicShear * bottom - outlineThickness, position.y + bottom - outlineThickness), bottomGradient, sf::Vector2f(u2, v2)));
+    }
 }
 
 
@@ -206,6 +228,21 @@ void Text::setFillColor(const Color& color)
     }
 }
 
+void Text::setGradientColor(const Color& top, const Color& bottom)
+{
+    if (top != m_topGradient)
+    {
+        m_topGradient = top;
+        m_geometryNeedUpdate = true;
+    }
+
+    if (bottom != m_bottomGradient)
+    {
+        m_bottomGradient = bottom;
+        m_geometryNeedUpdate = true;
+    }
+}
+
 
 ////////////////////////////////////////////////////////////
 void Text::setOutlineColor(const Color& color)
@@ -233,6 +270,20 @@ void Text::setOutlineThickness(float thickness)
         m_outlineThickness = thickness;
         m_geometryNeedUpdate = true;
     }
+}
+
+void Text::setShadowOffset(const Vector2f& offset)
+{
+    if (m_shadowOffset != offset)
+    {
+        m_shadowOffset = offset;
+        m_geometryNeedUpdate = true;
+    }
+}
+
+const Vector2f& Text::getShadowOffset() const
+{
+    return m_shadowOffset;
 }
 
 
@@ -415,12 +466,14 @@ void Text::ensureGeometryUpdate() const
         return;
 
     // Compute values related to the text style
-    bool  isBold             = m_style & Bold;
-    bool  isUnderlined       = m_style & Underlined;
-    bool  isStrikeThrough    = m_style & StrikeThrough;
-    float italicShear        = (m_style & Italic) ? 0.209f : 0.f; // 12 degrees in radians
-    float underlineOffset    = m_font->getUnderlinePosition(m_characterSize);
-    float underlineThickness = m_font->getUnderlineThickness(m_characterSize);
+    const bool isBold              = m_style & Bold;
+    const bool isUnderlined        = m_style & Underlined;
+    const bool isStrikeThrough     = m_style & StrikeThrough;
+    const bool hasShadow           = m_style & Shadow;
+    const bool hasGradient         = m_style & Gradient;
+    const float italicShear        = (m_style & Italic) ? 0.209f : 0.f; // 12 degrees in radians
+    const float underlineOffset    = m_font->getUnderlinePosition(m_characterSize);
+    const float underlineThickness = m_font->getUnderlineThickness(m_characterSize);
 
     // Compute the location of the strike through dynamically
     // We use the center point of the lowercase 'x' glyph as the reference
@@ -498,7 +551,7 @@ void Text::ensureGeometryUpdate() const
         // Apply the outline
         if (m_outlineThickness != 0)
         {
-            const Glyph& glyph = m_font->getGlyph(curChar, m_characterSize, isBold, m_outlineThickness);
+            const Glyph& glyph = m_font->getGlyph(curChar, m_characterSize, isBold, hasShadow ? 0.f : m_outlineThickness);
 
             float left   = glyph.bounds.left;
             float top    = glyph.bounds.top;
@@ -506,20 +559,39 @@ void Text::ensureGeometryUpdate() const
             float bottom = glyph.bounds.top  + glyph.bounds.height;
 
             // Add the outline glyph to the vertices
-            addGlyphQuad(m_outlineVertices, Vector2f(x, y), m_outlineColor, glyph, italicShear, m_outlineThickness);
+            const float offsetX = hasShadow ? m_shadowOffset.x : 0.f;
+            const float offsetY = hasShadow ? m_shadowOffset.y : 0.f;
+            addGlyphQuad(m_outlineVertices, Vector2f(x + offsetX, y + offsetY), m_outlineColor, glyph, italicShear, hasShadow ? 0.f : m_outlineThickness);
 
             // Update the current bounds with the outlined glyph bounds
-            minX = std::min(minX, x + left   - italicShear * bottom - m_outlineThickness);
-            maxX = std::max(maxX, x + right  - italicShear * top    - m_outlineThickness);
-            minY = std::min(minY, y + top    - m_outlineThickness);
-            maxY = std::max(maxY, y + bottom - m_outlineThickness);
+            if (!hasShadow)
+            {
+                minX = std::min(minX, x + left - italicShear * bottom - m_outlineThickness);
+                maxX = std::max(maxX, x + right - italicShear * top - m_outlineThickness);
+                minY = std::min(minY, y + top - m_outlineThickness);
+                maxY = std::max(maxY, y + bottom - m_outlineThickness);
+            }
+            else
+            {
+                minX = std::min(minX, x + left - italicShear * bottom);
+                maxX = std::max(maxX, x + right - italicShear * top);
+                minY = std::min(minY, y + top);
+                maxY = std::max(maxY, y + bottom);
+            }
         }
 
         // Extract the current glyph's description
         const Glyph& glyph = m_font->getGlyph(curChar, m_characterSize, isBold);
 
         // Add the glyph to the vertices
-        addGlyphQuad(m_vertices, Vector2f(x, y), m_fillColor, glyph, italicShear);
+        if (hasGradient)
+        {
+            addGlyphQuad(m_vertices, Vector2f(x, y), m_topGradient, m_bottomGradient, glyph, italicShear);
+        }
+        else
+        {
+            addGlyphQuad(m_vertices, Vector2f(x, y), m_fillColor, glyph, italicShear);
+        }
 
         // Update the current bounds with the non outlined glyph bounds
         if (m_outlineThickness == 0)

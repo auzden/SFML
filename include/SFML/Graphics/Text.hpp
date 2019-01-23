@@ -59,7 +59,9 @@ public:
         Bold          = 1 << 0, ///< Bold characters
         Italic        = 1 << 1, ///< Italic characters
         Underlined    = 1 << 2, ///< Underlined characters
-        StrikeThrough = 1 << 3  ///< Strike through characters
+        StrikeThrough = 1 << 3, ///< Strike through characters
+        Shadow        = 1 << 4,
+        Gradient      = 1 << 5
     };
 
     ////////////////////////////////////////////////////////////
@@ -222,6 +224,7 @@ public:
     ///
     ////////////////////////////////////////////////////////////
     void setFillColor(const Color& color);
+    void setGradientColor(const Color& top, const Color& bottom);
 
     ////////////////////////////////////////////////////////////
     /// \brief Set the outline color of the text
@@ -249,6 +252,9 @@ public:
     ///
     ////////////////////////////////////////////////////////////
     void setOutlineThickness(float thickness);
+
+    void setShadowOffset(const Vector2f& offset);
+    const Vector2f& getShadowOffset() const;
 
     ////////////////////////////////////////////////////////////
     /// \brief Get the text's string
@@ -449,6 +455,9 @@ private:
     mutable FloatRect   m_bounds;              ///< Bounding rectangle of the text (in local coordinates)
     mutable bool        m_geometryNeedUpdate;  ///< Does the geometry need to be recomputed?
     mutable Uint64      m_fontTextureId;       ///< The font texture id
+    Color               m_topGradient;
+    Color               m_bottomGradient;
+    Vector2f            m_shadowOffset;
 };
 
 } // namespace sf
