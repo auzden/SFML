@@ -274,11 +274,14 @@ static void onPause(ANativeActivity* activity)
     sf::priv::ActivityStates* states = sf::priv::retrieveStates(activity);
     sf::Lock lock(states->mutex);
 
-    // Send an event to warn people the activity has been paused
-    sf::Event event;
-    event.type = sf::Event::MouseLeft;
+    if (!states->mainOver)
+    {
+        // Send an event to warn people the activity has been paused
+        sf::Event event;
+        event.type = sf::Event::MouseLeft;
 
-    states->forwardEvent(event);
+        states->forwardEvent(event);
+    }
 }
 
 
@@ -368,10 +371,13 @@ static void onNativeWindowDestroyed(ANativeActivity* activity, ANativeWindow* wi
     // Update the activity states
     states->window = NULL;
 
-    // Notify SFML mechanism
-    sf::Event event;
-    event.type = sf::Event::LostFocus;
-    states->forwardEvent(event);
+    if (!states->mainOver)
+    {
+        // Notify SFML mechanism
+        sf::Event event;
+        event.type = sf::Event::LostFocus;
+        states->forwardEvent(event);
+    }
 
     // Wait for the event to be taken into account by SFML
     states->updated = false;
@@ -444,7 +450,7 @@ static void onContentRectChanged(ANativeActivity* activity, const ARect* rect)
     sf::Lock lock(states->mutex);
 
     // Make sure the window still exists before we access the dimensions on it
-    if (states->window != NULL) {
+    if (states->window != NULL && !states->mainOver) {
         // Send an event to warn people about the window move/resize
         sf::Event event;
         event.type = sf::Event::Resized;
